@@ -1,10 +1,16 @@
 import requests, lxml
 from bs4 import BeautifulSoup as beau
 
-r = requests.get('http://portaldalinguaportuguesa.org/index.php?action=fonetica&act=list&region=lbx')
-soup = beau(r.text, 'lxml')
-s_rollovertable = beau(str(soup.find(id='rollovertable')), 'lxml')
+url = 'http://portaldalinguaportuguesa.org/index.php?action=fonetica&act=list&region=lbx'
+parser = 'lxml'
 
-for i, word in enumerate(s_rollovertable.find_all('tr')):
-    print('Word no. ' + str(i))
-    print(word.prettify())
+r = requests.get(url)
+soup = beau(r.text, parser)
+
+soup_wordtable = beau(str(soup.find(id='rollovertable')), parser)
+
+for i, word in enumerate(soup_wordtable.find_all('tr')[1:]):
+    word_dict = {}
+
+    for content in word.contents[1:]:
+        print(content.prettify())
