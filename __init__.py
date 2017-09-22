@@ -6,51 +6,88 @@ from bs4 import (
 )
 from collections import namedtuple
 
+
 def main():
-    url = 'http://portaldalinguaportuguesa.org/index.php?action=fonetica&act=list&region=lbx'
+    homeurl = 'http://portaldalinguaportuguesa.org/index.php'
+    query = '?action=fonetica&act=list&region=lbx'
     p = 'html5lib'
 
-    soup = Beau(requests.get(url).text, p)
+    soup = Beau(requests.get(homeurl+query).text, p)
     identifiers = ['ortho', 'grammar', 'phono']
     wordtable = soup.find(id='rollovertable')('tr')[1:]
     worddicts = [dict(zip(identifiers, word.contents[1:])) for word in wordtable]
-    for word in worddicts:
-        word['ortho'] = ortho_parse(word['ortho'])
-        word['grammar'] = list(word['grammar'].stripped_strings)[0]
+    parsed_words = [word_parse(w) for w in worddicts]
     print()
 
 
+def word_parse(word):
+    """Parse a word dictionary.
+
+    A word dictionary contains the word's orthographic and phonemic transcription embedded in
+    HTML. The word's syllables are separated by special symbols and the syllabics are denoted
+    by HTML tags such as <u> or <b>.
+
+    A namedtuple is used to represent each syllable, its transcriptions and syllabics; this
+    structure eases the construction of a Phono object.
+
+    :param word: Dictionary containing a word's ortho and phono transcriptions
+    :return: List of namedtuple's
+    """
+    Syl = namedtuple('Syl', ['ortho', 'phono', 'strongaccent', 'weakaccent', 'previous'])
+    otrans = ortho_parse(word['ortho'])
+    ptrans = phono_parse(word['phono'])
+    assert len(otrans) == len(ptrans), """The orthographic and phonemic transcriptions 
+    of the word have a different number of syllables.
+    """
+
+    parsed = []
+    for i, ot in enumerate(otrans):
+        s = Syl(
+            ot.ortho,
+            ptrans[i],
+            ot.strongaccent,
+            ot.weakaccent,
+            ot.previous
+        )
+        parsed.append(s)
+
+    return parsed
+
+
 def ortho_parse(td_tag):
-    """Parse a <td> ortho tag into a manageable format
+    """Parse a <td> ortho tag into a manageable format.
 
     :param td_tag: <td> Tag of the orthography transcription of a word
-    :return: List of Syllable namedtuple
+    :return: List of OrthoSyl namedtuple
     """
+
     a_tag = td_tag.find('a')
-    Syllable = namedtuple('Syllable', ['ortho', 'strongaccent', 'weakaccent', 'previous'])
-    syllables = []
+    OrthoSyl = namedtuple('OrthoSyl', ['ortho', 'strongaccent', 'weakaccent', 'previous'])
     previous_index = ''.join(a_tag.stripped_strings).find('-')
+
+    syllables = []
     for i, content in enumerate(a_tag.contents):
         syl_str = list(content.stripped_strings)[0] if type(content) is Tag else str(content)
 
-        # Filter out '·' and '-'
-        syl_str = syl_str.replace('-', '')
+        # Hop out the '·'
         if syl_str in '·':
             continue
+
 
         syl_accents = markup_tags(content)
         has_strongaccent = True if 'b' in syl_accents else False
         has_weakaccent = True if 'u' in syl_accents else False
         is_previous = True if i < previous_index else False
 
-        assertion = has_weakaccent if has_strongaccent else True
-        assert_msg = 'If the syllable is strongly accented it also must be weakly accented'
-        assert assertion, assert_msg
+        assert has_weakaccent if has_strongaccent else True, """If the syllable is strongly
+        accented it also must be weakly accented
+        """
 
-        s = Syllable(syl_str, has_weakaccent, has_strongaccent, is_previous)
+        s = OrthoSyl(syl_str, has_weakaccent, has_strongaccent, is_previous)
         syllables.append(s)
 
-    return syllables
+    return clean_hyphen(syllables)
+
 
 def markup_tags(syltag):
     """
@@ -68,8 +105,29 @@ def markup_tags(syltag):
     
 
 def phono_parse(td_tag):
-    pass
+    """Parse a <td> phono tag into a manageable format.
 
+    :param td_tag: <td> Tag of the phonemic transcription of a word
+    :return: List of strings with phonemic transcription of a word
+    """
+    phono_str = list(td_tag.stripped_strings)[0]
+    return phono_str.split('.')
+
+
+def clean_hyphen(syls):
+    """Separate two not HTML markup'd hyphenated syllables
+
+    :param syls: List of syls
+    :return: Cleaned list of syls
+    """
+    cleaned_syls = []
+    for syl in syls:
+        if '-' in syl:
+            partition = syl.partition('-')
+            cleaned_syls.append(partition[0])
+            cleaned_syls.append(partition[2])
+        else:
+            cleaned_syls.append()
 main()
 
 
