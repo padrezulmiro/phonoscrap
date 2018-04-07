@@ -4,6 +4,7 @@ from bs4 import (
 )
 from collections import namedtuple
 from copy import deepcopy
+from .warnings import warn_unequal_syllables
 
 
 class HtmlParser:
@@ -28,22 +29,21 @@ class HtmlParser:
         ortho_transcription = self._ortho_parse(word['ortho'])
         phono_transcription = self._phono_parse(word['phono'])
 
-        assert len(ortho_transcription) == len(phono_transcription), """The orthographic and 
-        phonemic transcriptions of the word have a different number of syllables.
-        """
+        if not len(ortho_transcription) == len(phono_transcription):
+            warn_unequal_syllables(ortho_transcription, phono_transcription)
 
-        parsed = []
-        for i, ot in enumerate(ortho_transcription):
-            s = Syl(
-                ot.ortho,
-                phono_transcription[i],
-                ot.strongaccent,
-                ot.weakaccent,
-                ot.previous
-            )
-            parsed.append(s)
-
-        return parsed
+        # parsed = []
+        # for i, ot in enumerate(ortho_transcription):
+        #     s = Syl(
+        #         ot.ortho,
+        #         phono_transcription[i],
+        #         ot.strongaccent,
+        #         ot.weakaccent,
+        #         ot.previous
+        #     )
+        #     parsed.append(s)
+        #
+        # return parsed
 
     def _ortho_parse(self, td_tag):
         """Parse a <td> ortho tag into a manageable format.
@@ -107,22 +107,29 @@ class HtmlParser:
         :param syls: List of syls
         :return: Cleaned list of syls
         """
+
         cleaned_syls = []
         for syl in syls:
             ortho = syl.ortho
 
+            if ortho == '-':
+                continue
+
             if '-' in ortho:
                 partition = ortho.partition('-')
 
-                first_syl = deepcopy(syl)
-                first_syl = first_syl._replace(ortho=partition[0])
-                cleaned_syls.append(first_syl)
+                # todo hacking big time with the following if statements
+                if partition[0]:
+                    first_syl = deepcopy(syl)
+                    first_syl = first_syl._replace(ortho=partition[0])
+                    cleaned_syls.append(first_syl)
 
-                second_syl = deepcopy(syl)
-                second_syl = second_syl._replace(ortho=partition[2])
-                cleaned_syls.append(second_syl)
+                if partition[2]:
+                    second_syl = deepcopy(syl)
+                    second_syl = second_syl._replace(ortho=partition[2])
+                    cleaned_syls.append(second_syl)
 
             else:
                 cleaned_syls.append(syl)
 
-            return cleaned_syls
+        return cleaned_syls

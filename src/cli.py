@@ -1,23 +1,40 @@
 import requests
 from bs4 import BeautifulSoup as bs
 from .htmlparser import HtmlParser
+from .lettersymbols import alphabet
+from math import ceil
 
 
 def main():
-    home_url = 'http://portaldalinguaportuguesa.org/index.php'
-    query = '?action=fonetica&act=list&region=lbx'
     parser = 'html5lib'
 
-    soup = bs(requests.get(home_url + query).text, parser)
+    search = {
+        'a': (0, 200)
+    }
+    home_url = 'http://portaldalinguaportuguesa.org/index.php?action=fonetica&act=list&region=lbx'
+    queries = generate_url(search)
 
-    identifiers = ['ortho', 'grammar', 'phono']
-    word_table = soup.find(id='rollovertable')('tr')[1:]
-    word_dicts = [dict(zip(identifiers, word.contents[1:])) for word in word_table]
+    for query in queries:
+        soup = bs(requests.get(home_url + query).text, parser)
 
-    word_example = word_dicts[12]  # abrogatório
-    print(word_example)
-    parsed_example = HtmlParser.word_parse(word_example)
-    parsed_words = [HtmlParser.word_parse(w) for w in word_dicts]
+        identifiers = ['ortho', 'grammar', 'phono']
+        word_table = soup.find(id='rollovertable')('tr')[1:]
+        word_dicts = [dict(zip(identifiers, word.contents[1:])) for word in word_table]
+
+        parsed_words = [HtmlParser.word_parse(w) for w in word_dicts]
+        print()
 
 
+def generate_url(search):
+    """
+    :param search: Dictionary {letter: (start, stop)}
 
+    """
+    page_url = '&letter={}&start={}'
+    words_per_page = 20
+
+    for letter, word_range in search.items():
+        word_ids = range(word_range[0], word_range[1], words_per_page)
+
+        for word_num in word_ids:
+            yield page_url.format(letter, word_num)
