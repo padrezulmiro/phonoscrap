@@ -5,12 +5,13 @@ from bs4 import (
 from collections import namedtuple
 from copy import deepcopy
 from .warnings import warn_unequal_syllables
+from .phonofactory import PhonoFactory
 
 
 class HtmlParser:
 
     @staticmethod
-    def word_parse(word):
+    def word_parse(word_dict):
         """Parse a word dictionary.
 
         A word dictionary contains the word's orthographic and phonemic transcription embedded
@@ -20,17 +21,20 @@ class HtmlParser:
         A namedtuple is used to represent each syllable, its transcriptions and syllabics; this
         structure eases the construction of a Phono object.
 
-        :param word: Dictionary containing a word's ortho and phono transcriptions
+        :param word_dict: Dictionary containing a word's ortho and phono transcriptions
         :return: List of namedtuple's
         """
-        self = HtmlParser()
         Syl = namedtuple('Syl', ['ortho', 'phono', 'strongaccent', 'weakaccent', 'previous'])
 
-        ortho_transcription = self._ortho_parse(word['ortho'])
-        phono_transcription = self._phono_parse(word['phono'])
+        ortho_transcription = HtmlParser._ortho_parse(word_dict['ortho'])
+        phono_transcription = HtmlParser._phono_parse(word_dict['phono'])
 
         if not len(ortho_transcription) == len(phono_transcription):
             warn_unequal_syllables(ortho_transcription, phono_transcription)
+
+        phonos = PhonoFactory.create(ortho_transcription, phono_transcription)
+
+        return phonos
 
         # parsed = []
         # for i, ot in enumerate(ortho_transcription):
@@ -45,13 +49,14 @@ class HtmlParser:
         #
         # return parsed
 
-    def _ortho_parse(self, td_tag):
+    @staticmethod
+    def _ortho_parse(td_tag):
         """Parse a <td> ortho tag into a manageable format.
 
         :param td_tag: <td> Tag of the orthography transcription of a word
         :return: List of OrthoSyl namedtuple
         """
-
+        # todo Is the previous prop really necessary (I think not!)
         a_tag = td_tag.find('a')
         OrthoSyl = namedtuple('OrthoSyl', ['ortho', 'strongaccent', 'weakaccent', 'previous'])
         previous_index = ''.join(a_tag.stripped_strings).find('-')
@@ -64,7 +69,8 @@ class HtmlParser:
             if syl_str in '·':
                 continue
 
-            syl_accents = self._markup_tags(content)
+            # todo Found example of a syl with strong but WITHOUT weak accent
+            syl_accents = HtmlParser._markup_tags(content)
             has_strong_accent = True if 'b' in syl_accents else False
             has_weak_accent = True if 'u' in syl_accents else False
             is_previous = True if i < previous_index else False
@@ -76,32 +82,40 @@ class HtmlParser:
             s = OrthoSyl(syl_str, has_weak_accent, has_strong_accent, is_previous)
             syllables.append(s)
 
-        return self._clean_hyphen(syllables)
+        return HtmlParser._clean_hyphen(syllables)
 
-    def _markup_tags(self, syltag):
+    @staticmethod
+    def _markup_tags(syl_tag):
         """
 
-        :param syltag:
+        :param syl_tag:
         :return:
         """
-        if type(syltag) is Tag:
-            assert len(list(syltag.children)) == 1, "Tag doesn't have just a sole child"
-            return self._markup_tags(list(syltag.children)[0]) + [syltag.name]
-        elif type(syltag) is NavigableString:
+        if type(syl_tag) is Tag:
+            assert len(list(syl_tag.children)) == 1, "Tag doesn't have an only child"
+            return HtmlParser._markup_tags(list(syl_tag.children)[0]) + [syl_tag.name]
+        elif type(syl_tag) is NavigableString:
             return []
         else:
             return False
 
-    def _phono_parse(self, td_tag):
+    @staticmethod
+    def _phono_parse(td_tag):
         """Parse a <td> phono tag into a manageable format.
 
         :param td_tag: <td> Tag of the phonemic transcription of a word
         :return: List of strings with phonemic transcription of a word
         """
-        phono_str = list(td_tag.stripped_strings)[0]
-        return phono_str.split('.')
 
-    def _clean_hyphen(self, syls):
+        strings = list(td_tag.stripped_strings)
+        if strings:
+            phono_str = list(td_tag.stripped_strings)[0]
+            return phono_str.split('.')
+        else:
+            return []
+
+    @staticmethod
+    def _clean_hyphen(syls):
         """Separate two not HTML markup'd hyphenated syllables
 
         :param syls: List of syls

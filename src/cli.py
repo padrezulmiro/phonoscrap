@@ -1,8 +1,6 @@
 import requests
 from bs4 import BeautifulSoup as bs
 from .htmlparser import HtmlParser
-from .lettersymbols import alphabet
-from math import ceil
 
 
 def main():
