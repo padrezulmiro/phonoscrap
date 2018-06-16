@@ -10,7 +10,7 @@ def warn_unequal_syllables(ortho, phono, msg=None):
         Phono transcription: {phono_trans}
         """
 
-        ortho_trans = ", ".join([syl.ortho for syl in ortho])
+        ortho_trans = ", ".join([syl['ortho'] for syl in ortho])
         phono_trans = ", ".join(phono)
 
         msg = msg.format(

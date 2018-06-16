@@ -2,8 +2,6 @@ from bs4 import (
     Tag,
     NavigableString
 )
-from collections import namedtuple
-from copy import deepcopy
 from .warnings import warn_unequal_syllables
 from .phonofactory import PhonoFactory
 
@@ -24,8 +22,6 @@ class HtmlParser:
         :param word_dict: Dictionary containing a word's ortho and phono transcriptions
         :return: List of namedtuple's
         """
-        Syl = namedtuple('Syl', ['ortho', 'phono', 'strongaccent', 'weakaccent', 'previous'])
-
         ortho_transcription = HtmlParser._ortho_parse(word_dict['ortho'])
         phono_transcription = HtmlParser._phono_parse(word_dict['phono'])
 
@@ -36,19 +32,6 @@ class HtmlParser:
 
         return phonos
 
-        # parsed = []
-        # for i, ot in enumerate(ortho_transcription):
-        #     s = Syl(
-        #         ot.ortho,
-        #         phono_transcription[i],
-        #         ot.strongaccent,
-        #         ot.weakaccent,
-        #         ot.previous
-        #     )
-        #     parsed.append(s)
-        #
-        # return parsed
-
     @staticmethod
     def _ortho_parse(td_tag):
         """Parse a <td> ortho tag into a manageable format.
@@ -56,10 +39,9 @@ class HtmlParser:
         :param td_tag: <td> Tag of the orthography transcription of a word
         :return: List of OrthoSyl namedtuple
         """
-        # todo Is the previous prop really necessary (I think not!)
+
+        # OrthoSyl = namedtuple('OrthoSyl', ['ortho', 'strongaccent', 'weakaccent'])
         a_tag = td_tag.find('a')
-        OrthoSyl = namedtuple('OrthoSyl', ['ortho', 'strongaccent', 'weakaccent', 'previous'])
-        previous_index = ''.join(a_tag.stripped_strings).find('-')
 
         syllables = []
         for i, content in enumerate(a_tag.contents):
@@ -69,20 +51,24 @@ class HtmlParser:
             if syl_str in '·':
                 continue
 
-            # todo Found example of a syl with strong but WITHOUT weak accent
             syl_accents = HtmlParser._markup_tags(content)
             has_strong_accent = True if 'b' in syl_accents else False
             has_weak_accent = True if 'u' in syl_accents else False
-            is_previous = True if i < previous_index else False
 
-            assert has_weak_accent if has_strong_accent else True, """If the syllable is strongly
-            accented it also must be weakly accented
-            """
+            assert has_weak_accent if has_strong_accent else True, """If the syllable is 
+            strongly accented it also must be weakly accented"""
 
-            s = OrthoSyl(syl_str, has_weak_accent, has_strong_accent, is_previous)
+            s = {
+                'ortho': syl_str,
+                'strong_accent': has_strong_accent,
+                'weak_accent': has_weak_accent
+            }
             syllables.append(s)
 
-        return HtmlParser._clean_hyphen(syllables)
+        syllables = HtmlParser._split_hyphens(syllables)
+        #syllables = HtmlParser._agglutinate_hyphens(syllables)
+        syllables = HtmlParser._mark_hyphens(syllables)
+        return syllables
 
     @staticmethod
     def _markup_tags(syl_tag):
@@ -115,35 +101,64 @@ class HtmlParser:
             return []
 
     @staticmethod
-    def _clean_hyphen(syls):
+    def _split_hyphens(syls):
+        """
+
+        :param syls:
+        :return:
+        """
+        splitted = []
+        for syl in syls:
+            ortho = syl['ortho']
+            assert (ortho.count('-') > 1) is False, 'Multiple instances of hyphens'
+
+            hyphen_i = ortho.find('-') # abe-be
+            if hyphen_i in range(1, len(ortho)-2):
+                before_hyphen = ortho[:hyphen_i+1]
+                after_hyphen = ortho[hyphen_i+1:]
+
+                splitted.append({
+                    'ortho': before_hyphen,
+                    'strong_accent': syl['strong_accent'],
+                    'weak_accent': syl['weak_accent']
+                })
+                splitted.append({
+                    'ortho': after_hyphen,
+                    'strong_accent': syl['strong_accent'],
+                    'weak_accent': syl['weak_accent']
+                })
+            else:
+                splitted.append(syl)
+
+        return splitted
+
+    @staticmethod
+    def _agglutinate_hyphens(syls):
+        '''
+
+        :param syls:
+        :return:
+        '''
+
+
+
+    @staticmethod
+    def _mark_hyphens(syls):
         """Separate two not HTML markup'd hyphenated syllables
 
         :param syls: List of syls
-        :return: Cleaned list of syls
+        :return: List of syls with hyphen property
         """
+        # Syls might have hyphens in every combination: -syl, syl-, -syl- or syl-syl
 
-        cleaned_syls = []
-        for syl in syls:
-            ortho = syl.ortho
+        hyphen_syls = []
+        for i, syl in enumerate(syls):
+            ortho = syl['ortho']
+            hyphen_positions = [i for i, char in enumerate(ortho) if char == '-']
 
-            if ortho == '-':
-                continue
-
-            if '-' in ortho:
-                partition = ortho.partition('-')
-
-                # todo hacking big time with the following if statements
-                if partition[0]:
-                    first_syl = deepcopy(syl)
-                    first_syl = first_syl._replace(ortho=partition[0])
-                    cleaned_syls.append(first_syl)
-
-                if partition[2]:
-                    second_syl = deepcopy(syl)
-                    second_syl = second_syl._replace(ortho=partition[2])
-                    cleaned_syls.append(second_syl)
-
-            else:
-                cleaned_syls.append(syl)
-
-        return cleaned_syls
+            if 1 in hyphen_positions and not i == 0:
+                hyphen_syls.append(i - 1)
+            if len(ortho)-1 in hyphen_positions:
+                hyphen_syls.append(i)
+            
+        return syls

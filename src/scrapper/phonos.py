@@ -47,5 +47,5 @@ class Phonos:
 
         syls = filter(descriminator, transcription)
         # todo Maybe switch the assertion with an try/except
-        assert len(syls) == 0, """Syllable can't have more than one strong accent"""
+        assert len(syls) == 1, """Syllable can't have more than one strong accent"""
         return syls[0]
