@@ -66,7 +66,7 @@ class HtmlParser:
             syllables.append(s)
 
         syllables = HtmlParser._split_hyphens(syllables)
-        #syllables = HtmlParser._agglutinate_hyphens(syllables)
+        # syllables = HtmlParser._agglutinate_hyphens(syllables)
         syllables = HtmlParser._mark_hyphens(syllables)
         return syllables
 

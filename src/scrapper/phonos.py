@@ -1,5 +1,3 @@
-
-
 class Phonos:
 
     def __init__(self, ortho, phono):
